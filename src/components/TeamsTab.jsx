@@ -97,7 +97,7 @@ const TeamsTab = () => {
       {teams.length > 0 ? (
         <div style={gridStyle}>
           {teams.map(team => (
-            <TeamCard key={team.id} team={team} cardStyle={cardStyle} h3Style={h3Style} pStyle={pStyle} btnStyle={btnStyle} />
+            <TeamCard key={team.id} team={team} cardStyle={cardStyle} h3Style={h3Style} btnStyle={btnStyle} />
           ))}
         </div>
       ) : (
@@ -110,7 +110,7 @@ const TeamsTab = () => {
   );
 };
 
-const TeamCard = ({ team, cardStyle, h3Style, pStyle, btnStyle }) => {
+const TeamCard = ({ team, cardStyle, h3Style, btnStyle }) => {
   const [isHovered, setIsHovered] = useState(false);
 
   const getTagValue = (tagName) => {

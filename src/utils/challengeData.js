@@ -2,7 +2,7 @@
 export const CHALLENGE_LEVELS = {
   1: {
     level: 1,
-    title: "Endurance Foundation",
+    title: "",
     description: "Walk, run, or cycle 1 mile",
     requirements: [
       "Complete 1 mile distance",
@@ -10,8 +10,8 @@ export const CHALLENGE_LEVELS = {
       "Any pace acceptable"
     ],
     timeLimit: 24, // hours
-    difficulty: "Beginner",
-    emoji: "🚶‍♂️",
+    difficulty: "",
+    emoji: "",
     verificationTags: ["distance", "activity_type"],
     minDistance: 1.0, // miles
     acceptedActivities: ["walking", "running", "cycling"]

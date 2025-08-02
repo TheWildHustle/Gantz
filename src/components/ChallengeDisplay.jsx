@@ -1,15 +1,65 @@
 import { useState, useEffect } from 'react';
 import { getChallengeLevel } from '../utils/challengeData';
+import { findChallengeCompletionEvents } from '../utils/workoutVerification';
+import { useNostr } from '../contexts/useNostr';
 import TimerComponent from './TimerComponent';
 
 const ChallengeDisplay = ({ level, onChallengeComplete, onChallengeTimeout }) => {
   const [challenge, setChallenge] = useState(null);
   const [challengeStartTime] = useState(Date.now());
+  const [verificationStatus, setVerificationStatus] = useState(null);
+  const { fetchEvents, ndk } = useNostr();
 
   useEffect(() => {
     const challengeData = getChallengeLevel(level);
     setChallenge(challengeData);
+    setVerificationStatus(null); // Reset verification when level changes
   }, [level]);
+
+  // Auto-verify user's workouts every 30 seconds
+  useEffect(() => {
+    if (!ndk?.activeUser) return;
+    
+    const verifyWorkouts = async () => {
+      try {
+        const userPubkey = ndk.activeUser.pubkey;
+        
+        // Fetch recent 1301 events from the user
+        const events = await fetchEvents({
+          kinds: [1301],
+          authors: [userPubkey],
+          since: Math.floor(challengeStartTime / 1000),
+          limit: 20
+        });
+        
+        
+        // Check for valid completions
+        const verification = findChallengeCompletionEvents(
+          events,
+          userPubkey,
+          level,
+          challengeStartTime
+        );
+        
+        setVerificationStatus(verification);
+        
+        // Auto-complete if verified
+        if (verification.hasCompleted) {
+          console.log('Auto-verified challenge completion!');
+        }
+      } catch (error) {
+        console.error('Failed to verify workouts:', error);
+      }
+    };
+    
+    // Initial verification
+    verifyWorkouts();
+    
+    // Set up periodic verification
+    const interval = setInterval(verifyWorkouts, 30000); // Every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, [level, challengeStartTime, ndk, fetchEvents]);
 
   if (!challenge) {
     return (
@@ -54,7 +104,6 @@ const ChallengeDisplay = ({ level, onChallengeComplete, onChallengeTimeout }) =>
   };
 
   const difficultyColors = {
-    'Beginner': '#4ade80',
     'Beginner+': '#22d3ee', 
     'Intermediate': '#f59e0b',
     'Intermediate+': '#f97316',
@@ -197,70 +246,45 @@ const ChallengeDisplay = ({ level, onChallengeComplete, onChallengeTimeout }) =>
         ))}
       </div>
 
-      {/* Action Buttons */}
-      <div style={{
-        display: 'flex',
-        gap: '15px',
-        justifyContent: 'center',
-        flexWrap: 'wrap'
-      }}>
-        <button
-          onClick={() => {
-            console.log('Challenge completed by user');
-            if (onChallengeComplete) onChallengeComplete(challenge.level);
-          }}
-          style={{
-            background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-            border: 'none',
-            padding: '15px 30px',
-            borderRadius: '8px',
-            color: 'white',
-            fontSize: '16px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            boxShadow: '0 5px 15px rgba(34, 197, 94, 0.3)',
-            transition: 'all 0.3s'
-          }}
-          onMouseOver={(e) => {
-            e.target.style.transform = 'translateY(-2px)';
-            e.target.style.boxShadow = '0 8px 25px rgba(34, 197, 94, 0.4)';
-          }}
-          onMouseOut={(e) => {
-            e.target.style.transform = 'translateY(0)';
-            e.target.style.boxShadow = '0 5px 15px rgba(34, 197, 94, 0.3)';
-          }}
-        >
-          ✅ Mark as Completed
-        </button>
 
-        <button
-          onClick={() => {
-            console.log('User eliminated from challenge');
-            // This will be used for elimination in Phase 4
-          }}
-          style={{
-            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-            border: 'none',
-            padding: '15px 30px',
-            borderRadius: '8px',
-            color: 'white',
-            fontSize: '16px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            boxShadow: '0 5px 15px rgba(239, 68, 68, 0.3)',
-            transition: 'all 0.3s'
-          }}
-          onMouseOver={(e) => {
-            e.target.style.transform = 'translateY(-2px)';
-            e.target.style.boxShadow = '0 8px 25px rgba(239, 68, 68, 0.4)';
-          }}
-          onMouseOut={(e) => {
-            e.target.style.transform = 'translateY(0)';
-            e.target.style.boxShadow = '0 5px 15px rgba(239, 68, 68, 0.3)';
-          }}
-        >
-          ❌ Cannot Complete
-        </button>
+      {/* Automated Verification Notice */}
+      <div style={{
+        background: 'rgba(255, 107, 107, 0.1)',
+        border: '2px solid #ff6b6b',
+        borderRadius: '10px',
+        padding: '20px',
+        textAlign: 'center'
+      }}>
+        <h3 style={{ 
+          color: '#ff6b6b', 
+          marginBottom: '10px',
+          fontSize: '18px'
+        }}>
+          🎯 Automated Challenge Verification
+        </h3>
+        <p style={{ 
+          color: '#cccccc', 
+          marginBottom: '15px',
+          fontSize: '14px',
+          lineHeight: '1.5'
+        }}>
+          <strong>RUNSTR</strong> assists in cardio workouts. <strong>POWR</strong> assists in strength workouts. 
+          Workouts from those apps will count towards the room's challenge. You can also use the 
+          <strong> Strength Workout Creator</strong> below to post workouts directly.
+        </p>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '20px',
+          fontSize: '14px',
+          color: '#888'
+        }}>
+          <span>💪 Post Workout</span>
+          <span>→</span>
+          <span>📋 Auto-Verification</span>
+          <span>→</span>
+          <span>✅ Challenge Progress</span>
+        </div>
       </div>
 
       {/* Challenge Info Footer */}

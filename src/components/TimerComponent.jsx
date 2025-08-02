@@ -61,12 +61,13 @@ const TimerComponent = ({
     }
   };
 
-  const start = () => setIsRunning(true);
-  const pause = () => setIsRunning(false);
-  const reset = () => {
-    setTimeLeft(initialSeconds);
-    setIsRunning(autoStart && isActive);
-  };
+  // Timer control functions (keeping for potential future use)
+  // const start = () => setIsRunning(true);
+  // const pause = () => setIsRunning(false);
+  // const reset = () => {
+  //   setTimeLeft(initialSeconds);
+  //   setIsRunning(autoStart && isActive);
+  // };
 
   const timerStyle = {
     fontFamily: 'monospace',
