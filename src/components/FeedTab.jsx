@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNostr } from '../contexts/useNostr';
 import { storage } from '../utils/storage';
+import { 
+  getTagValue, 
+  formatDate, 
+  getActivityTypeEmoji, 
+  buildMetricsText,
+  safeParseJSON,
+  validateProfilePicture 
+} from '../utils/dataHelpers';
 
 const FeedTab = () => {
   const { fetchEvents } = useNostr();
@@ -17,11 +25,6 @@ const FeedTab = () => {
     transition: 'all 0.3s'
   };
 
-  const cardHoverStyle = {
-    ...cardStyle,
-    borderColor: '#ff6b6b',
-    transform: 'translateY(-2px)'
-  };
 
   const h2Style = {
     fontSize: '28px',
@@ -141,9 +144,13 @@ const WorkoutCard = ({ workout, cardStyle, h3Style, pStyle }) => {
         });
 
         if (profileEvents.length > 0) {
-          const profileData = JSON.parse(profileEvents[0].content);
-          setProfile(profileData);
-          storage.cacheProfile(workout.author, profileData);
+          const profileData = safeParseJSON(profileEvents[0].content);
+          if (profileData) {
+            setProfile(profileData);
+            storage.cacheProfile(workout.author, profileData);
+          } else {
+            console.warn('Failed to parse profile data for author:', workout.author);
+          }
         }
       } catch (error) {
         console.error('Failed to load profile:', error);
@@ -153,74 +160,55 @@ const WorkoutCard = ({ workout, cardStyle, h3Style, pStyle }) => {
     loadProfile();
   }, [workout.author, fetchEvents]);
 
-  // Extract workout data from tags
-  const getTagValue = (tagName) => {
-    const tag = workout.tags.find(t => t[0] === tagName);
-    return tag ? tag[1] : null;
-  };
-
-  const title = getTagValue('title') || 'Workout';
-  const activityType = getTagValue('activity_type') || 'Unknown';
-  const distance = getTagValue('distance');
-  const duration = getTagValue('duration');
-  const pace = getTagValue('pace');
-
-  const formatDuration = (seconds) => {
-    if (!seconds) return null;
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const formatDate = (timestamp) => {
-    const date = new Date(timestamp * 1000);
-    const now = new Date();
-    const diffTime = Math.abs(now - date);
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  // Enhanced data extraction for NIP-101e compliance
+  const extractActivityType = (tags) => {
+    // Try multiple sources for activity type
+    let activityType = getTagValue(tags, 'activity_type');
     
-    if (diffDays === 0) {
-      return `Today at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
-    } else if (diffDays === 1) {
-      return `Yesterday at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
-    } else {
-      return `${diffDays} days ago`;
-    }
-  };
-
-  const getActivityTypeEmoji = (type) => {
-    switch (type?.toLowerCase()) {
-      case 'running':
-        return '🏃';
-      case 'cycling':
-        return '🚴';
-      case 'walking':
-        return '🚶';
-      case 'swimming':
-        return '🏊';
-      case 'hiking':
-        return '🥾';
-      default:
-        return '💪';
-    }
-  };
-
-  const buildMetricsText = () => {
-    const metrics = [];
-    
-    if (distance) {
-      metrics.push(`Distance: ${parseFloat(distance).toFixed(1)} km`);
+    if (!activityType) {
+      // Try to extract from exercise tag (format: "33401:pubkey:uuid-running")
+      const exerciseTag = getTagValue(tags, 'exercise');
+      if (exerciseTag && typeof exerciseTag === 'string') {
+        const parts = exerciseTag.split(':');
+        if (parts.length >= 3) {
+          const exerciseId = parts[2];
+          if (exerciseId.includes('running')) activityType = 'running';
+          else if (exerciseId.includes('cycling')) activityType = 'cycling';
+          else if (exerciseId.includes('walking')) activityType = 'walking';
+          else if (exerciseId.includes('swimming')) activityType = 'swimming';
+          else if (exerciseId.includes('hiking')) activityType = 'hiking';
+        }
+      }
     }
     
-    if (duration) {
-      metrics.push(`Duration: ${formatDuration(parseInt(duration))}`);
+    if (!activityType) {
+      // Fallback: try to detect from content or title
+      const content = workout.content?.toLowerCase() || '';
+      const title = getTagValue(tags, 'title', '').toLowerCase();
+      const text = `${content} ${title}`;
+      
+      if (text.includes('run')) activityType = 'running';
+      else if (text.includes('bike') || text.includes('cycl')) activityType = 'cycling';
+      else if (text.includes('walk')) activityType = 'walking';
+      else if (text.includes('swim')) activityType = 'swimming';
+      else if (text.includes('hik')) activityType = 'hiking';
     }
     
-    if (pace) {
-      metrics.push(`Pace: ${pace}`);
-    }
-    
-    return metrics.join(' • ');
+    return activityType || 'workout';
   };
+  
+  const title = getTagValue(workout.tags, 'title') || 
+               (workout.content && workout.content.length > 50 
+                 ? workout.content.substring(0, 47) + '...' 
+                 : workout.content) || 
+               'Workout Activity';
+               
+  const activityType = extractActivityType(workout.tags);
+  const metricsText = buildMetricsText(workout.tags);
+  
+  // Extract additional metadata
+  const source = getTagValue(workout.tags, 'source') || getTagValue(workout.tags, 'client');
+  const completed = getTagValue(workout.tags, 'completed');
 
   const currentStyle = isHovered ? {
     ...cardStyle,
@@ -248,25 +236,29 @@ const WorkoutCard = ({ workout, cardStyle, h3Style, pStyle }) => {
           fontWeight: 'bold',
           overflow: 'hidden'
         }}>
-          {profile?.picture ? (
-            <img 
-              src={profile.picture.startsWith('http:') ? profile.picture.replace('http:', 'https:') : profile.picture}
-              alt="User Avatar"
-              style={{
-                width: '100%',
-                height: '100%',
-                borderRadius: '50%',
-                objectFit: 'cover'
-              }}
-              onError={(e) => {
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'flex';
-              }}
-            />
-          ) : null}
+          {(() => {
+            const validPictureUrl = validateProfilePicture(profile?.picture);
+            return validPictureUrl ? (
+              <img 
+                src={validPictureUrl}
+                alt="User Avatar"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: '50%',
+                  objectFit: 'cover'
+                }}
+                onError={(e) => {
+                  console.warn('Failed to load profile picture:', validPictureUrl);
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+            ) : null;
+          })()}
           <div 
             style={{
-              display: profile?.picture ? 'none' : 'flex',
+              display: validateProfilePicture(profile?.picture) ? 'none' : 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               width: '100%',
@@ -283,15 +275,54 @@ const WorkoutCard = ({ workout, cardStyle, h3Style, pStyle }) => {
         </div>
       </div>
       
+      {/* Workout Title with Activity Type */}
       <h3 style={h3Style}>
         {getActivityTypeEmoji(activityType)} {title}
       </h3>
-      <p style={pStyle}>
-        {buildMetricsText()}
-      </p>
-      <p style={{...pStyle, marginTop: '10px', color: '#888'}}>
-        {formatDate(workout.created_at)}
-      </p>
+      
+      {/* Workout Content */}
+      {workout.content && workout.content !== title && (
+        <p style={{...pStyle, marginBottom: '15px', fontStyle: 'italic'}}>
+          "{workout.content}"
+        </p>
+      )}
+      
+      {/* Metrics Display */}
+      <div style={{marginBottom: '15px'}}>
+        {metricsText ? (
+          <p style={{...pStyle, fontSize: '16px', fontWeight: '500'}}>
+            {metricsText}
+          </p>
+        ) : (
+          <p style={{...pStyle, color: '#666'}}>
+            No metrics available
+          </p>
+        )}
+      </div>
+      
+      {/* Footer with metadata */}
+      <div style={{
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginTop: '15px',
+        paddingTop: '15px',
+        borderTop: '1px solid #333'
+      }}>
+        <p style={{...pStyle, color: '#888', margin: 0}}>
+          {formatDate(workout.created_at)}
+        </p>
+        {source && (
+          <p style={{...pStyle, color: '#888', margin: 0, fontSize: '12px'}}>
+            via {source}
+          </p>
+        )}
+        {completed === 'true' && (
+          <div style={{color: '#4ade80', fontSize: '12px', fontWeight: '500'}}>
+            ✅ Completed
+          </div>
+        )}
+      </div>
     </div>
   );
 };
