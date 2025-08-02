@@ -35,33 +35,80 @@ export const getTagValueWithUnit = (tags, tagName) => {
 };
 
 /**
- * Format duration from seconds to MM:SS format
- * @param {string|number} durationValue - Duration in seconds (can be string or number)
+ * Parse duration from various formats and convert to seconds
+ * @param {string|number} durationValue - Duration in seconds, HH:MM:SS, or MM:SS format
+ * @returns {number|null} Duration in seconds or null if invalid
+ */
+export const parseDurationToSeconds = (durationValue) => {
+  if (!durationValue && durationValue !== 0) return null;
+  
+  // If it's already a number, assume it's seconds
+  if (typeof durationValue === 'number') {
+    return durationValue >= 0 ? durationValue : null;
+  }
+  
+  const durationStr = String(durationValue).trim();
+  
+  // Check if it's in HH:MM:SS or MM:SS format
+  if (durationStr.includes(':')) {
+    const parts = durationStr.split(':');
+    
+    // HH:MM:SS format
+    if (parts.length === 3) {
+      const hours = parseInt(parts[0], 10);
+      const minutes = parseInt(parts[1], 10);
+      const seconds = parseInt(parts[2], 10);
+      
+      if (isNaN(hours) || isNaN(minutes) || isNaN(seconds)) return null;
+      if (hours < 0 || minutes < 0 || minutes >= 60 || seconds < 0 || seconds >= 60) return null;
+      
+      return hours * 3600 + minutes * 60 + seconds;
+    }
+    
+    // MM:SS format
+    if (parts.length === 2) {
+      const minutes = parseInt(parts[0], 10);
+      const seconds = parseInt(parts[1], 10);
+      
+      if (isNaN(minutes) || isNaN(seconds)) return null;
+      if (minutes < 0 || seconds < 0 || seconds >= 60) return null;
+      
+      return minutes * 60 + seconds;
+    }
+  }
+  
+  // Try to parse as pure seconds
+  const seconds = parseInt(durationStr, 10);
+  if (isNaN(seconds) || seconds < 0) return null;
+  
+  return seconds;
+};
+
+/**
+ * Format duration from various inputs to MM:SS or HH:MM:SS format
+ * @param {string|number} durationValue - Duration in seconds, HH:MM:SS, or MM:SS format
  * @returns {string|null} Formatted duration or null if invalid
  */
 export const formatDuration = (durationValue) => {
-  if (!durationValue && durationValue !== 0) return null;
+  const totalSeconds = parseDurationToSeconds(durationValue);
+  if (totalSeconds === null) return null;
   
-  // Convert to number and validate
-  const seconds = parseInt(durationValue, 10);
-  if (isNaN(seconds) || seconds < 0) return null;
-  
-  // Handle different time formats
-  if (seconds < 60) {
-    return `0:${seconds.toString().padStart(2, '0')}`;
+  // Handle different time ranges
+  if (totalSeconds < 60) {
+    return `0:${totalSeconds.toString().padStart(2, '0')}`;
   }
   
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
   
-  // For very long durations, show hours too
-  if (mins >= 60) {
-    const hours = Math.floor(mins / 60);
-    const remainingMins = mins % 60;
-    return `${hours}:${remainingMins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  // For durations less than an hour, show MM:SS
+  if (hours === 0) {
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }
   
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
+  // For longer durations, show HH:MM:SS
+  return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
 
 /**
