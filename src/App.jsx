@@ -4,7 +4,7 @@ import { useNostr } from './contexts/useNostr';
 import Header from './components/Header';
 import ProfileTab from './components/ProfileTab';
 import FeedTab from './components/FeedTab';
-import EventsTab from './components/EventsTab';
+import RoomTab from './components/RoomTab';
 import TeamsTab from './components/TeamsTab';
 
 const AppContent = () => {
@@ -17,8 +17,8 @@ const AppContent = () => {
         return <ProfileTab />;
       case 'feed':
         return <FeedTab />;
-      case 'events':
-        return <EventsTab />;
+      case 'room':
+        return <RoomTab />;
       case 'teams':
         return <TeamsTab />;
       default:

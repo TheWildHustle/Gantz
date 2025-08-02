@@ -1,4 +1,5 @@
 import { useNostr } from '../contexts/useNostr';
+import TimerComponent from './TimerComponent';
 
 const Header = ({ activeTab, setActiveTab }) => {
   const { logout } = useNostr();
@@ -97,24 +98,40 @@ const Header = ({ activeTab, setActiveTab }) => {
           >
             Profile
           </button>
-          <button 
-            style={getNavLinkStyle(activeTab === 'events')} 
-            onClick={() => setActiveTab('events')}
-            onMouseOver={(e) => {
-              if (activeTab !== 'events') {
-                e.target.style.color = '#ffffff';
-                e.target.style.borderColor = '#444444';
-              }
-            }}
-            onMouseOut={(e) => {
-              if (activeTab !== 'events') {
-                e.target.style.color = '#cccccc';
-                e.target.style.borderColor = 'transparent';
-              }
-            }}
-          >
-            Events
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button 
+              style={getNavLinkStyle(activeTab === 'room')} 
+              onClick={() => setActiveTab('room')}
+              onMouseOver={(e) => {
+                if (activeTab !== 'room') {
+                  e.target.style.color = '#ffffff';
+                  e.target.style.borderColor = '#444444';
+                }
+              }}
+              onMouseOut={(e) => {
+                if (activeTab !== 'room') {
+                  e.target.style.color = '#cccccc';
+                  e.target.style.borderColor = 'transparent';
+                }
+              }}
+            >
+              Room
+            </button>
+            <TimerComponent
+              initialSeconds={300} // 5 minutes for demo
+              format="M:SS"
+              prefix="Room: "
+              style={{
+                fontSize: '14px',
+                color: '#ff6b6b',
+                fontWeight: '600'
+              }}
+              onComplete={() => {
+                console.log('Room formation timer completed!');
+                // This will trigger room formation in the future
+              }}
+            />
+          </div>
           <button 
             style={getNavLinkStyle(activeTab === 'teams')} 
             onClick={() => setActiveTab('teams')}
